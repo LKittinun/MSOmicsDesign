@@ -1,0 +1,245 @@
+---
+title: "DIA Window Design"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{DIA Window Design}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 4
+)
+```
+
+```{r setup}
+library(MSOmicsDesign)
+```
+
+## Overview
+
+This vignette covers the three window-design strategies provided by
+**MSOmicsDesign**:
+
+| Strategy | Function | Use case |
+|----------|----------|----------|
+| Fixed-width DIA | `DIA.windows()` | Equal isolation windows across the m/z range |
+| Variable-width DIA | `vDIA.windows()` | Windows weighted by precursor density |
+| GPF-DIA | `GPF.windows()` | Gas-phase fractionation from an existing isolation list |
+
+All functions return an `mzdf` data frame that can be visualised with `plot()`
+and saved with `save.csv = TRUE`.
+
+---
+
+## 1. Fixed-width DIA windows — `DIA.windows()`
+
+### Specifying window width
+
+```{r}
+dia <- DIA.windows(mnc = 400, mxc = 1000, windows.width = 20)
+head(dia)
+nrow(dia) # number of windows
+```
+
+### Specifying number of windows
+
+Use `n.windows` instead of `windows.width` to request an approximate window
+count. The actual width is computed as
+`ceiling((mxc - mnc) / n.windows)`, so the final count may be ±1.
+
+```{r}
+dia_n <- DIA.windows(mnc = 400, mxc = 1000, n.windows = 30)
+nrow(dia_n)
+```
+
+### Output types
+
+`output.type` controls the columns returned:
+
+```{r}
+# Default: lower/upper bounds
+DIA.windows(mnc = 400, mxc = 1000, windows.width = 20) |> head(3)
+
+# Center mass + scan width (for instruments that use this format)
+DIA.windows(
+  mnc = 400,
+  mxc = 1000,
+  windows.width = 20,
+  output.type = "center"
+) |>
+  head(3)
+
+# Both together
+DIA.windows(mnc = 400, mxc = 1000, windows.width = 20, output.type = "both") |>
+  head(3)
+```
+
+### Staggered windows
+
+Staggered acquisition doubles the number of windows by offsetting a second set
+by half a window width. This improves coverage at window edges.
+
+```{r}
+dia_stagger <- DIA.windows(
+  mnc = 400,
+  mxc = 1000,
+  windows.width = 20,
+  stagger = TRUE
+)
+nrow(dia_stagger) # 2x the non-staggered count
+```
+
+### Window optimisation (`opt.windows`)
+
+By default `optimize = TRUE`, which places window edges in m/z "forbidden
+zones" where +2H and +3H peptides are rarely present, minimising chimeric
+spectra. This calls `opt.windows()` internally.
+
+```{r}
+# Manual use of opt.windows
+edges <- seq(400, 1000, 20)
+opt.windows(edges) |> head()
+
+# With phospho correction
+opt.windows(edges, phospho = TRUE) |> head()
+```
+
+### Visualise
+
+```{r, fig.height = 5}
+plot(dia)
+```
+
+---
+
+## 2. Variable-width DIA windows — `vDIA.windows()`
+
+Variable windows allocate narrower ranges in dense precursor regions and wider
+ranges where precursors are sparse, giving roughly equal ion current per window.
+
+The function uses the `precursor_hela` reference dataset (HeLa precursor m/z
+frequencies from Webel et al. 2024) by default. You can supply your own
+reference with the `ref.data` argument.
+
+```{r}
+vdia <- vDIA.windows(mnc = 400, mxc = 1000, n.windows = 32)
+head(vdia)
+nrow(vdia)
+```
+
+Compare window widths — narrow in the dense 400–700 region, wider elsewhere:
+
+```{r}
+vdia$width <- vdia$upper_windows - vdia$lower_windows
+summary(vdia$width)
+```
+
+```{r, fig.height = 5}
+plot(vdia)
+```
+
+### Custom reference data
+
+Supply any data frame with integer `mz` and frequency `n` columns:
+
+```{r, eval = FALSE}
+my_ref <- data.frame(mz = 400:999, n = rpois(600, lambda = 100))
+vDIA.windows(mnc = 400, mxc = 1000, n.windows = 32, ref.data = my_ref)
+```
+
+---
+
+## 3. GPF-DIA windows — `GPF.windows()`
+
+Gas-phase fractionation (GPF) runs a full DIA isolation list in multiple
+injections, each covering a sub-range of the m/z axis. `GPF.windows()` takes
+an existing isolation list and partitions it into groups.
+
+### From an isolation list string vector
+
+```{r}
+data(staggered_mz)
+head(staggered_mz)
+
+gpf <- GPF.windows(staggered_mz$range, mnc = 400, mxc = 1000)
+length(gpf) # number of GPF groups
+names(gpf) # m/z range of each group
+```
+
+Each element is an `mzdf` data frame for one GPF injection:
+
+```{r}
+gpf[[1]]
+```
+
+### From separate lower/upper bound vectors
+
+```{r}
+mz_list <- strsplit(staggered_mz$range, split = "-")
+lower_b <- as.numeric(sapply(mz_list, "[[", 1))
+upper_b <- as.numeric(sapply(mz_list, "[[", 2))
+
+gpf2 <- GPF.windows(
+  lower_windows = lower_b,
+  upper_windows = upper_b,
+  mnc = 400,
+  mxc = 1000
+)
+identical(names(gpf), names(gpf2))
+```
+
+### Custom GPF scan range
+
+`windows_width` (default 100 Da) sets the m/z span of each GPF injection:
+
+```{r}
+gpf_wide <- GPF.windows(
+  staggered_mz$range,
+  mnc = 400,
+  mxc = 1000,
+  windows_width = 200
+)
+length(gpf_wide) # fewer groups than the default 100 Da split
+```
+
+### Visualise a single GPF group
+
+```{r, fig.height = 3}
+plot(gpf[[1]])
+```
+
+---
+
+## Saving output
+
+All three functions accept `save.csv = TRUE` to write their output to a `.csv`
+file importable by most instrument control software:
+
+```{r, eval = FALSE}
+DIA.windows(mnc = 400, mxc = 1000, windows.width = 20, save.csv = TRUE) # writes DIA_windows.csv
+
+vDIA.windows(mnc = 400, mxc = 1000, n.windows = 32, save.csv = TRUE) # writes variable_windows.csv
+```
+
+`GPF.windows()` writes one `.csv` per group:
+
+```{r, eval = FALSE}
+GPF.windows(staggered_mz$range, mnc = 400, mxc = 1000, save.csv = TRUE) # writes 400-500.csv, 500-600.csv, …
+```
+
+---
+
+## Choosing a strategy
+
+| Question | Recommendation |
+|----------|---------------|
+| First experiment, unknown sample complexity | Fixed-width (`DIA.windows`) |
+| HeLa-like proteome, maximise identifications | Variable-width (`vDIA.windows`) |
+| Deep proteome with limited MS time | GPF-DIA (`GPF.windows`) |
+| Edge-chimera artefacts visible in data | Enable `optimize = TRUE` (default) |
+| Low-abundance phosphopeptides | `opt.windows(phospho = TRUE)` |

@@ -1,0 +1,359 @@
+---
+title: "Plate Design Workflow"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Plate Design Workflow}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 4
+)
+```
+
+```{r setup}
+library(MSOmicsDesign)
+```
+
+## Overview
+
+This vignette walks through a complete plate design workflow for an MS-based
+omics experiment:
+
+1. Define the sample list
+2. Insert QC samples
+3. (Optional) Block-randomise by experimental covariates
+4. Fill samples into plate matrices
+5. Merge plates from multiple batches
+6. Visualise plates
+7. Export plate positions for an instrument sequence file
+
+---
+
+## 1. Define samples
+
+Start with a character vector of sample identifiers. Here we use 20 samples
+from a two-condition experiment.
+
+```{r}
+samples <- paste0("S", 1:20)
+samples
+```
+
+---
+
+## 2. Insert QC samples with `addQC()`
+
+`addQC()` inserts QC runs at a fixed interval throughout the sequence.
+
+```{r}
+samples_qc <- addQC(samples, interval = 6)
+samples_qc
+```
+
+A QC is placed after every 6 samples. The QCs are automatically labelled
+`QC_1`, `QC_2`, … You can change the prefix with the `label` argument.
+
+```{r}
+addQC(samples, interval = 6, label = "POOL")
+```
+
+To insert QCs at specific positions instead of a regular interval, use the
+`position` argument:
+
+```{r}
+addQC(samples, position = c(1, 10, 20))
+```
+
+Use `replace = TRUE` to swap samples at the given positions in-place (sequence
+length unchanged) rather than inserting additional entries:
+
+```{r}
+addQC(samples, position = c(1, 10, 20), replace = TRUE)
+```
+
+Use `permute = TRUE` with `interval` to randomise the order within each block
+(samples + QC shuffled together):
+
+```{r}
+addQC(samples, interval = 6, permute = TRUE)
+```
+
+---
+
+## 3. Block randomisation with `block.rand()` (optional)
+
+When your experiment has multiple covariates (e.g. time-point and treatment),
+block randomisation ensures each run-order block contains a balanced mix.
+
+```{r}
+data(ccc)
+head(ccc)
+```
+
+```{r, message = FALSE}
+ccc_block <- block.rand(ccc, time, response)
+ccc_block
+```
+
+The result has `block.id`, `block.size`, `unique_group`, and `unique_group_id`
+columns appended to the original data frame.
+
+### Controlling block size
+
+By default `block.rand()` maximises the number of blocks (one sample per group
+per block). Use `block_size` to set how many samples per group appear in each
+block, or `n_blocks` to fix the number of blocks directly.
+
+```{r, message = FALSE}
+# 2 samples per group per block
+block.rand(ccc, time, response, block_size = 2)
+```
+
+```{r, message = FALSE}
+# Exactly 3 blocks
+block.rand(ccc, time, response, n_blocks = 3)
+```
+
+Use `seed` to make results reproducible (default `seed = 1`).
+
+### Checking block balance
+
+`check.block()` tabulates each covariate combination within every block so you
+can verify balance at a glance.
+
+```{r}
+check.block(ccc_block)
+```
+
+### Using block-randomised samples downstream
+
+The `unique_group_id` column gives a unique, randomised label per sample that
+can be piped directly into `fill.plate()`.
+
+```{r}
+fp_block <- fill.plate(ccc_block$unique_group_id)
+```
+
+---
+
+## 4. Fill samples into plates with `fill.plate()`
+
+`fill.plate()` distributes a sample vector across one or more 96-well (or
+custom-size) plates.
+
+```{r}
+fp <- fill.plate(samples_qc)
+class(fp)
+length(fp$plate) # number of plates used
+```
+
+By default the plate is 6 rows × 9 columns (54 wells). Samples spill onto the
+next plate automatically when they exceed the well count.
+
+```{r}
+# Two full plates of 60 samples
+fp2 <- fill.plate(paste0("S", 1:60))
+length(fp2$plate)
+```
+
+### Custom plate dimensions and names
+
+```{r}
+fill.plate(
+  samples_qc,
+  nrows = 8,
+  ncols = 12,
+  plate_names = c("Plate1", "Plate2")
+)$plate |>
+  names()
+```
+
+### Attaching a labels vector
+
+A companion label vector (e.g. sample descriptions or weights) can be stored
+alongside the plate matrix and displayed on plots.
+
+```{r}
+labels <- paste0("lbl_", seq_along(samples_qc))
+fp_lbl <- fill.plate(samples_qc, labels = labels)
+names(fp_lbl) # $plate, $label, $data
+class(fp_lbl$label) # inherits "plate" — same structure as $plate
+```
+
+### Reserving wells with `exclude`
+
+Use `exclude` to mark instrument QC wells or other reserved positions. Reserved
+wells are filled with `exclude_label` (default `"iQC"`) and skipped when
+placing samples.
+
+Apply the same exclusion to every plate with a character vector:
+
+```{r}
+fill.plate(paste0("S", 1:20), exclude = "A1")$plate
+```
+
+Apply per-plate exclusions with a named list. The `"all"` key applies to every
+plate; other keys apply to named plates only:
+
+```{r}
+fill.plate(paste0("S", 1:100), exclude = list(all = "A1", G = "B3"))$plate |>
+  names()
+```
+
+---
+
+## 5. Merge plates from multiple batches with `merge_plate()`
+
+When an experiment is designed in separate batches — for example two runs
+designed independently — `merge_plate()` combines two `plate_list` objects
+into one.
+
+```{r}
+batch_a <- fill.plate(paste0("S", 1:20))
+batch_b <- fill.plate(paste0("S", 21:40))
+
+merged <- merge_plate(batch_a, batch_b)
+length(merged$plate) # plates from both batches
+names(merged$plate) # plate names
+```
+
+### Name conflicts
+
+If both batches produce plates with the same name (e.g. both produce an `"R"`
+plate), `merge_plate()` appends suffixes to disambiguate:
+
+```{r}
+big_a <- fill.plate(paste0("S", 1:60)) # fills R and G
+big_b <- fill.plate(paste0("S", 61:120)) # also fills R and G
+
+merged2 <- merge_plate(big_a, big_b)
+names(merged2$plate) # "R_1" "G_1" "R_2" "G_2"
+```
+
+Use the `suffixes` argument to customise the appended strings:
+
+```{r}
+merged3 <- merge_plate(big_a, big_b, suffixes = c("_batchA", "_batchB"))
+names(merged3$plate)
+```
+
+### Merging with labels
+
+Labels are merged when both inputs have them. A warning is issued and the label
+slot is dropped if only one side carries labels.
+
+```{r}
+a_lab <- fill.plate(paste0("S", 1:20), labels = paste0("L", 1:20))
+b_lab <- fill.plate(paste0("S", 21:40), labels = paste0("L", 21:40))
+
+merged_lab <- merge_plate(a_lab, b_lab)
+length(merged_lab$label) # combined label plates
+```
+
+---
+
+## 6. Visualise plates with `plot()`
+
+`plot()` dispatches to `plot.plate_list()` for a `plate_list` object, or to
+`plot.plate()` for a single plate matrix.
+
+### No labels — colour by group
+
+```{r, fig.height = 3}
+plot(fp)
+```
+
+### Flat vector labels
+
+Pass a vector of the same length as the original sample vector. Labels are
+split across plates automatically.
+
+```{r, fig.height = 3}
+plot(fp, labels = paste0("lbl_", seq_along(samples_qc)))
+```
+
+### Plate-structure labels from `fill.plate()$label`
+
+When labels were stored via `fill.plate(labels = ...)`, pass `$label` directly.
+This is the recommended path — no splitting or padding occurs.
+
+```{r, fig.height = 3}
+plot(fp_lbl, labels = fp_lbl$label)
+```
+
+### Stripping QC suffixes for colour grouping
+
+Use `control.suffix` to collapse `QC_1`, `QC_2`, … into a single `"QC"` colour
+group on the plot.
+
+```{r, fig.height = 3}
+plot(fp, control.suffix = "QC")
+```
+
+### Plotting a single plate matrix directly
+
+```{r, fig.height = 3}
+plot(fp$plate[[1]])
+```
+
+---
+
+## 7. Generate instrument sequence positions with `generate.position()`
+
+`generate.position()` converts the plate matrices into position strings in the
+format expected by Thermo Xcalibur (`plate_name:rowcol`, e.g. `"R:A1"`).
+
+```{r}
+pos <- generate.position(fp)
+pos
+```
+
+Set `flatten = TRUE` to collapse all plates into a single character vector
+ready for insertion into a sequence table.
+
+```{r}
+pos_flat <- generate.position(fp, flatten = TRUE)
+head(pos_flat)
+length(pos_flat) # equals length(samples_qc)
+```
+
+---
+
+## Full workflow in one block
+
+```{r, eval = FALSE}
+library(MSOmicsDesign)
+
+# 1. Samples
+samples <- paste0("S", 1:50)
+
+# 2. QC every 8 samples
+samples_qc <- addQC(samples, interval = 8)
+
+# 3. Fill plates (6 x 9 default), reserve A1 as instrument QC on every plate
+fp <- fill.plate(
+  samples_qc,
+  labels = paste0("lbl_", seq_along(samples_qc)),
+  exclude = "A1"
+)
+
+# 4. Merge a second batch
+fp2 <- fill.plate(
+  paste0("S", 51:100),
+  labels = paste0("lbl_", 51:100),
+  exclude = "A1"
+)
+fp_all <- merge_plate(fp, fp2)
+
+# 5. Visualise
+plot(fp_all, labels = fp_all$label, control.suffix = "QC")
+
+# 6. Export positions
+positions <- generate.position(fp_all, flatten = TRUE)
+```

@@ -1,0 +1,41 @@
+Package: MSOmicsDesign
+Title: Experiment design for MS-based omics study
+Version: 0.1.0
+Authors@R: 
+    person("Kittinun", "Leetanaporn", , "kittinun.l@psu.ac.th", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-7621-4510"))
+Description: Provides tools for designing mass spectrometry-based omics
+    experiments. Covers two main workflows: (1) sample plate design —
+    inserting QC runs, block-randomising by experimental covariates,
+    distributing samples across multi-well plates, visualising plate layouts,
+    and exporting position lists for Thermo Xcalibur sequence files; and
+    (2) data-independent acquisition (DIA) window design — generating
+    fixed-width, variable-width (density-weighted), and gas-phase
+    fractionation (GPF) isolation window lists with optional edge
+    optimisation for reduced chimeric spectra.
+License: CC BY 4.0
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.1.0)
+LazyData: true
+Imports:
+    dplyr,
+    forcats,
+    ggplot2,
+    janitor,
+    purrr,
+    randomizr,
+    readr,
+    scales,
+    stringr,
+    tibble,
+    tidyr
+Suggests:
+    knitr,
+    pkgload,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3

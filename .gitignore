@@ -1,0 +1,8 @@
+.Rproj.user
+.claude/
+/*.csv
+precursors_single_dumps/
+/doc/
+/Meta/
+/*.Rcheck/
+/*.tar.gz
