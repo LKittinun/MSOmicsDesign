@@ -36,7 +36,7 @@ and saved with `save.csv = TRUE`.
 
 ---
 
-## 1. Fixed-width DIA windows — `DIA.windows()`
+## 1. Fixed-width DIA windows: `DIA.windows()`
 
 ### Specifying window width
 
@@ -117,7 +117,7 @@ plot(dia)
 
 ---
 
-## 2. Variable-width DIA windows — `vDIA.windows()`
+## 2. Variable-width DIA windows: `vDIA.windows()`
 
 Variable windows allocate narrower ranges in dense precursor regions and wider
 ranges where precursors are sparse, giving roughly equal ion current per window.
@@ -154,7 +154,7 @@ vDIA.windows(mnc = 400, mxc = 1000, n.windows = 32, ref.data = my_ref)
 
 ---
 
-## 3. GPF-DIA windows — `GPF.windows()`
+## 3. GPF-DIA windows: `GPF.windows()`
 
 Gas-phase fractionation (GPF) runs a full DIA isolation list in multiple
 injections, each covering a sub-range of the m/z axis. `GPF.windows()` takes

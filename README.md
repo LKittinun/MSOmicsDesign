@@ -4,15 +4,13 @@
 [![R-CMD-check](https://github.com/LKittinun/MSOmicsDesign/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/LKittinun/MSOmicsDesign/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
-> **Note:** This is a personal side project built for in-house experiment design.
-
 **MSOmicsDesign** provides tools for designing mass spectrometry-based omics
 experiments. It covers two main workflows:
 
-- **Plate design** — insert QC runs, block-randomise by experimental
+- **Plate design**: insert QC runs, block-randomise by experimental
   covariates, distribute samples across multi-well plates, visualise layouts,
   and export position lists for Thermo Xcalibur sequence files.
-- **DIA window design** — generate fixed-width, variable-width
+- **DIA window design**: generate fixed-width, variable-width
   (density-weighted), and gas-phase fractionation (GPF) isolation window lists
   with optional edge optimisation for reduced chimeric spectra.
 
@@ -43,7 +41,7 @@ samples_qc <- addQC(samples, interval = 6)
 fp <- fill.plate(samples_qc,
                  labels = paste0("lbl_", seq_along(samples_qc)))
 
-# 3. Visualise — colour by group, show labels
+# 3. Visualise: colour by group, show labels
 plot(fp, labels = fp$label, control.suffix = "QC")
 
 # 4. Export plate positions for Xcalibur
@@ -140,4 +138,4 @@ vignette("dia-windows",   package = "MSOmicsDesign")
 
 ## License
 
-CC BY 4.0 — Kittinun Leetanaporn
+CC BY 4.0, Kittinun Leetanaporn
