@@ -20,13 +20,13 @@
 #' @examples
 #' a <- fill.plate(paste0("S", 1:20))
 #' b <- fill.plate(paste0("S", 21:40))
-#' merged <- merge.plate_list(a, b)
+#' merged <- merge_plate(a, b)
 #' length(merged$plate)
 #'
 #' ## Conflicting plate names get suffixes
 #' c1 <- fill.plate(paste0("S", 1:60))
 #' c2 <- fill.plate(paste0("S", 61:120))
-#' merged2 <- merge.plate_list(c1, c2)
+#' merged2 <- merge_plate(c1, c2)
 #' names(merged2$plate)
 
 merge.plate_list <- function(x, y, suffixes = c("_1", "_2"), ...) {
