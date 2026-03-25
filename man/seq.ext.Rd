@@ -4,7 +4,7 @@
 \alias{seq.ext}
 \title{Extend sequence to max value}
 \usage{
-\method{seq}{ext}(
+seq.ext(
   from = 1,
   to = 1,
   by = ((to - from)/(length.out - 1)),
