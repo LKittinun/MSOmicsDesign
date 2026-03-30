@@ -7,7 +7,7 @@
 **MSOmicsDesign** provides tools for designing mass spectrometry-based omics
 experiments. It covers two main workflows:
 
-- **Plate design**: insert QC runs, block-randomise by experimental
+- **Experiment design**: insert QC runs, block-randomise by experimental
   covariates, distribute samples across multi-well plates, visualise layouts,
   and export position lists for Thermo Xcalibur sequence files.
 - **DIA window design**: generate fixed-width, variable-width
